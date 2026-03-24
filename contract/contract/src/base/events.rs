@@ -37,6 +37,19 @@ pub fn pool_created(
     );
 }
 
+pub fn event_created(
+    env: &Env,
+    pool_id: u64,
+    name: String,
+    creator: Address,
+    target_amount: i128,
+    deadline: u64,
+) {
+    let topics = (Symbol::new(env, "event_created"), pool_id, creator);
+    env.events()
+        .publish(topics, (name, target_amount, deadline));
+}
+
 pub fn pool_state_updated(env: &Env, pool_id: u64, new_state: PoolState) {
     let topics = (Symbol::new(env, "pool_state_updated"), pool_id);
     env.events().publish(topics, new_state);

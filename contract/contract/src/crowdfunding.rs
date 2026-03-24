@@ -762,11 +762,20 @@ impl CrowdfundingTrait for CrowdfundingContract {
         events::pool_created(
             &env,
             pool_id,
-            config.name,
-            config.description,
-            creator,
+            config.name.clone(),
+            config.description.clone(),
+            creator.clone(),
             config.target_amount,
             config.min_contribution,
+            deadline,
+        );
+
+        events::event_created(
+            &env,
+            pool_id,
+            config.name,
+            creator,
+            config.target_amount,
             deadline,
         );
 

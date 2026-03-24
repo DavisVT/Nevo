@@ -264,7 +264,6 @@ pub enum StorageKey {
     EmergencyWithdrawal,
     CrowdfundingToken,
     CreationFee,
-    PlatformFeeBps,
     VerifiedCause(Address),
     PlatformFees,
     GlobalTotalRaised,
@@ -273,7 +272,6 @@ pub enum StorageKey {
     EmergencyContact,
     CampaignFeeHistory(BytesN<32>),
     Blacklist(Address),
-
     ReentrancyLock(u64),
     EmergencyWithdrawalLock,
     PoolCreator(u64),

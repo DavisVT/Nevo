@@ -315,6 +315,8 @@ pub enum StorageKey {
     Event(BytesN<32>),
     // Per-event metrics (tickets sold, etc.)
     EventMetrics(BytesN<32>),
+    // Marks that an event pool's funds have been fully withdrawn
+    EventDrained(u64),
 }
 
 #[cfg(test)]

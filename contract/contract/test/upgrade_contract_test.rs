@@ -1,10 +1,12 @@
 #![cfg(test)]
 
-use soroban_sdk::{testutils::{Address as _, Events, Ledger as _}, Address, Env, BytesN, Symbol, contract, contractimpl};
-
-use crate::{
-    crowdfunding::{CrowdfundingContract, CrowdfundingContractClient},
+use soroban_sdk::{
+    contract, contractimpl,
+    testutils::{Address as _, Events, Ledger as _},
+    Address, BytesN, Env, Symbol,
 };
+
+use crate::crowdfunding::{CrowdfundingContract, CrowdfundingContractClient};
 
 fn setup(env: &Env) -> (CrowdfundingContractClient<'_>, Address) {
     env.mock_all_auths();
@@ -32,7 +34,7 @@ impl MockContract {
 fn test_contract_upgraded_event_format() {
     let env = Env::default();
     env.ledger().set_protocol_version(21);
-    
+
     let mock_id = env.register(MockContract, ());
     let mock_client = MockContractClient::new(&env, &mock_id);
 
@@ -70,7 +72,7 @@ fn test_upgrade_contract_requires_admin() {
     // mock_all_auths will handle the auth check but we want to see it NOT panic only for the right user
     // Actually, to test auth requirement explicitly:
     env.mock_all_auths();
-    
+
     // This should succeed because of mock_all_auths, but we already know it fails due to WASM validation
     // So we just verify that it DOES require auth by checking the auth log or just trust the require_auth() call.
     // In this repo, other tests use mock_all_auths and assume require_auth() is there.

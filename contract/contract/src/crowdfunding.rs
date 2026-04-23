@@ -1926,27 +1926,22 @@ impl CrowdfundingTrait for CrowdfundingContract {
 
     fn approve_application(
         env: Env,
-        pool_id: u64,
-        applicant: Address,
-        validator: Address,
+        pool_id: u32,
+        student: Address,
     ) -> Result<(), ValidationError> {
-        // Fetch pool — ensures it exists and gives us the stored validator
-        let pool_key = StorageKey::Pool(pool_id);
+        // Fetch pool from persistent storage — gives us the stored validator
+        let pool_key = StorageKey::Pool(pool_id as u64);
         let pool: PoolConfig = env
             .storage()
             .instance()
             .get(&pool_key)
             .ok_or(ValidationError::PoolNotFound)?;
 
-        // Enforce that only the pool's designated validator may approve
+        // Enforce validator identity: only the pool's designated validator may approve.
+        // Invalid signers cause an immediate auth panic here.
         pool.validator.require_auth();
 
-        // The caller must match the stored validator
-        if validator != pool.validator {
-            return Err(ValidationError::Unauthorized);
-        }
-
-        let app_key = StorageKey::ScholarshipApplication(pool_id, applicant.clone());
+        let app_key = StorageKey::ScholarshipApplication(pool_id as u64, student.clone());
         let mut application: ScholarshipApplication = env
             .storage()
             .instance()
@@ -1957,9 +1952,10 @@ impl CrowdfundingTrait for CrowdfundingContract {
             return Err(ValidationError::ApplicationAlreadyProcessed);
         }
 
+        // Shift status to Approved and write back to storage
         application.status = ApplicationStatus::Approved;
         env.storage().instance().set(&app_key, &application);
-        events::scholarship_approved(&env, pool_id, applicant, validator);
+        events::scholarship_approved(&env, pool_id as u64, student, pool.validator);
         Ok(())
     }
 

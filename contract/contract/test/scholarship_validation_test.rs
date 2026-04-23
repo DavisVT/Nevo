@@ -59,13 +59,13 @@ fn test_apply_for_scholarship_success() {
     let validator = Address::generate(&env);
     let pool_id = create_pool_with_validator(&client, &env, &creator, &validator, &token);
 
-    let applicant = Address::generate(&env);
-    let result = client.try_apply_for_scholarship(&pool_id, &applicant);
+    let student = Address::generate(&env);
+    let result = client.try_apply_for_scholarship(&pool_id, &student);
     assert_eq!(result, Ok(Ok(())));
 
-    let app = client.get_application(&pool_id, &applicant);
+    let app = client.get_application(&pool_id, &student);
     assert_eq!(app.status, ApplicationStatus::Pending);
-    assert_eq!(app.applicant, applicant);
+    assert_eq!(app.applicant, student);
     assert_eq!(app.pool_id, pool_id);
 }
 
@@ -74,8 +74,8 @@ fn test_apply_for_scholarship_pool_not_found() {
     let env = Env::default();
     let (client, _, _) = setup(&env);
 
-    let applicant = Address::generate(&env);
-    let result = client.try_apply_for_scholarship(&999u64, &applicant);
+    let student = Address::generate(&env);
+    let result = client.try_apply_for_scholarship(&999u64, &student);
     assert_eq!(result, Err(Ok(ValidationError::PoolNotFound)));
 }
 
@@ -88,10 +88,10 @@ fn test_apply_for_scholarship_duplicate_fails() {
     let validator = Address::generate(&env);
     let pool_id = create_pool_with_validator(&client, &env, &creator, &validator, &token);
 
-    let applicant = Address::generate(&env);
-    client.apply_for_scholarship(&pool_id, &applicant);
+    let student = Address::generate(&env);
+    client.apply_for_scholarship(&pool_id, &student);
 
-    let result = client.try_apply_for_scholarship(&pool_id, &applicant);
+    let result = client.try_apply_for_scholarship(&pool_id, &student);
     assert_eq!(result, Err(Ok(ValidationError::ApplicationAlreadyExists)));
 }
 
@@ -106,18 +106,19 @@ fn test_approve_application_success() {
     let validator = Address::generate(&env);
     let pool_id = create_pool_with_validator(&client, &env, &creator, &validator, &token);
 
-    let applicant = Address::generate(&env);
-    client.apply_for_scholarship(&pool_id, &applicant);
+    let student = Address::generate(&env);
+    client.apply_for_scholarship(&pool_id, &student);
 
-    let result = client.try_approve_application(&pool_id, &applicant, &validator);
+    // pool_id cast to u32 as per the function signature
+    let result = client.try_approve_application(&(pool_id as u32), &student);
     assert_eq!(result, Ok(Ok(())));
 
-    let app = client.get_application(&pool_id, &applicant);
+    let app = client.get_application(&pool_id, &student);
     assert_eq!(app.status, ApplicationStatus::Approved);
 }
 
 #[test]
-fn test_approve_application_wrong_validator_fails() {
+fn test_approve_application_status_shifts_unequivocally() {
     let env = Env::default();
     let (client, _, token) = setup(&env);
 
@@ -125,12 +126,28 @@ fn test_approve_application_wrong_validator_fails() {
     let validator = Address::generate(&env);
     let pool_id = create_pool_with_validator(&client, &env, &creator, &validator, &token);
 
-    let applicant = Address::generate(&env);
-    client.apply_for_scholarship(&pool_id, &applicant);
+    let student = Address::generate(&env);
+    client.apply_for_scholarship(&pool_id, &student);
 
-    let impostor = Address::generate(&env);
-    let result = client.try_approve_application(&pool_id, &applicant, &impostor);
-    assert_eq!(result, Err(Ok(ValidationError::Unauthorized)));
+    // Confirm Pending before approval
+    let before = client.get_application(&pool_id, &student);
+    assert_eq!(before.status, ApplicationStatus::Pending);
+
+    client.approve_application(&(pool_id as u32), &student);
+
+    // Confirm Approved after
+    let after = client.get_application(&pool_id, &student);
+    assert_eq!(after.status, ApplicationStatus::Approved);
+}
+
+#[test]
+fn test_approve_application_pool_not_found() {
+    let env = Env::default();
+    let (client, _, _) = setup(&env);
+
+    let student = Address::generate(&env);
+    let result = client.try_approve_application(&999u32, &student);
+    assert_eq!(result, Err(Ok(ValidationError::PoolNotFound)));
 }
 
 #[test]
@@ -142,8 +159,9 @@ fn test_approve_application_not_found_fails() {
     let validator = Address::generate(&env);
     let pool_id = create_pool_with_validator(&client, &env, &creator, &validator, &token);
 
-    let applicant = Address::generate(&env);
-    let result = client.try_approve_application(&pool_id, &applicant, &validator);
+    // No application submitted — should fail
+    let student = Address::generate(&env);
+    let result = client.try_approve_application(&(pool_id as u32), &student);
     assert_eq!(result, Err(Ok(ValidationError::ApplicationNotFound)));
 }
 
@@ -156,16 +174,49 @@ fn test_approve_already_processed_fails() {
     let validator = Address::generate(&env);
     let pool_id = create_pool_with_validator(&client, &env, &creator, &validator, &token);
 
-    let applicant = Address::generate(&env);
-    client.apply_for_scholarship(&pool_id, &applicant);
-    client.approve_application(&pool_id, &applicant, &validator);
+    let student = Address::generate(&env);
+    client.apply_for_scholarship(&pool_id, &student);
+    client.approve_application(&(pool_id as u32), &student);
 
-    // Attempt to approve again
-    let result = client.try_approve_application(&pool_id, &applicant, &validator);
+    // Attempt to approve again — must fail
+    let result = client.try_approve_application(&(pool_id as u32), &student);
     assert_eq!(
         result,
         Err(Ok(ValidationError::ApplicationAlreadyProcessed))
     );
+}
+
+/// Invalid signers revert the sequence automatically.
+/// Without the validator's auth, require_auth() panics.
+#[test]
+#[should_panic]
+fn test_approve_panics_without_validator_auth() {
+    let env = Env::default();
+    let contract_id = env.register(CrowdfundingContract, ());
+    let client = CrowdfundingContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    let token_admin = Address::generate(&env);
+    let token = env
+        .register_stellar_asset_contract_v2(token_admin)
+        .address();
+
+    // Setup with mocked auth
+    env.mock_all_auths();
+    client.initialize(&admin, &token, &0);
+
+    let creator = Address::generate(&env);
+    let validator = Address::generate(&env);
+    let pool_id = create_pool_with_validator(&client, &env, &creator, &validator, &token);
+
+    let student = Address::generate(&env);
+    client.apply_for_scholarship(&pool_id, &student);
+
+    // Remove all mocked auths — validator has not signed
+    env.set_auths(&[]);
+
+    // Must panic: validator.require_auth() fails for unsigned call
+    client.approve_application(&(pool_id as u32), &student);
 }
 
 // ── reject_application ────────────────────────────────────────────────────────
@@ -179,13 +230,13 @@ fn test_reject_application_success() {
     let validator = Address::generate(&env);
     let pool_id = create_pool_with_validator(&client, &env, &creator, &validator, &token);
 
-    let applicant = Address::generate(&env);
-    client.apply_for_scholarship(&pool_id, &applicant);
+    let student = Address::generate(&env);
+    client.apply_for_scholarship(&pool_id, &student);
 
-    let result = client.try_reject_application(&pool_id, &applicant, &validator);
+    let result = client.try_reject_application(&pool_id, &student, &validator);
     assert_eq!(result, Ok(Ok(())));
 
-    let app = client.get_application(&pool_id, &applicant);
+    let app = client.get_application(&pool_id, &student);
     assert_eq!(app.status, ApplicationStatus::Rejected);
 }
 
@@ -198,11 +249,11 @@ fn test_reject_application_wrong_validator_fails() {
     let validator = Address::generate(&env);
     let pool_id = create_pool_with_validator(&client, &env, &creator, &validator, &token);
 
-    let applicant = Address::generate(&env);
-    client.apply_for_scholarship(&pool_id, &applicant);
+    let student = Address::generate(&env);
+    client.apply_for_scholarship(&pool_id, &student);
 
     let impostor = Address::generate(&env);
-    let result = client.try_reject_application(&pool_id, &applicant, &impostor);
+    let result = client.try_reject_application(&pool_id, &student, &impostor);
     assert_eq!(result, Err(Ok(ValidationError::Unauthorized)));
 }
 
@@ -215,12 +266,11 @@ fn test_reject_already_processed_fails() {
     let validator = Address::generate(&env);
     let pool_id = create_pool_with_validator(&client, &env, &creator, &validator, &token);
 
-    let applicant = Address::generate(&env);
-    client.apply_for_scholarship(&pool_id, &applicant);
-    client.reject_application(&pool_id, &applicant, &validator);
+    let student = Address::generate(&env);
+    client.apply_for_scholarship(&pool_id, &student);
+    client.reject_application(&pool_id, &student, &validator);
 
-    // Attempt to reject again
-    let result = client.try_reject_application(&pool_id, &applicant, &validator);
+    let result = client.try_reject_application(&pool_id, &student, &validator);
     assert_eq!(
         result,
         Err(Ok(ValidationError::ApplicationAlreadyProcessed))
@@ -236,72 +286,17 @@ fn test_reject_approved_application_fails() {
     let validator = Address::generate(&env);
     let pool_id = create_pool_with_validator(&client, &env, &creator, &validator, &token);
 
-    let applicant = Address::generate(&env);
-    client.apply_for_scholarship(&pool_id, &applicant);
-    client.approve_application(&pool_id, &applicant, &validator);
+    let student = Address::generate(&env);
+    client.apply_for_scholarship(&pool_id, &student);
+    client.approve_application(&(pool_id as u32), &student);
 
-    // Cannot reject an already-approved application
-    let result = client.try_reject_application(&pool_id, &applicant, &validator);
+    let result = client.try_reject_application(&pool_id, &student, &validator);
     assert_eq!(
         result,
         Err(Ok(ValidationError::ApplicationAlreadyProcessed))
     );
 }
 
-// ── get_application ───────────────────────────────────────────────────────────
-
-#[test]
-fn test_get_application_not_found() {
-    let env = Env::default();
-    let (client, _, token) = setup(&env);
-
-    let creator = Address::generate(&env);
-    let validator = Address::generate(&env);
-    let pool_id = create_pool_with_validator(&client, &env, &creator, &validator, &token);
-
-    let applicant = Address::generate(&env);
-    let result = client.try_get_application(&pool_id, &applicant);
-    assert_eq!(result, Err(Ok(ValidationError::ApplicationNotFound)));
-}
-
-// ── auth enforcement ──────────────────────────────────────────────────────────
-
-/// Verifies that unauthenticated accounts cannot approve applications.
-/// With mock_all_auths disabled, require_auth() will panic for any address
-/// that hasn't been explicitly authorized.
-#[test]
-#[should_panic]
-fn test_approve_panics_without_auth() {
-    let env = Env::default();
-    // Do NOT call env.mock_all_auths() — auth is enforced
-    let contract_id = env.register(CrowdfundingContract, ());
-    let client = CrowdfundingContractClient::new(&env, &contract_id);
-
-    let admin = Address::generate(&env);
-    let token_admin = Address::generate(&env);
-    let token = env
-        .register_stellar_asset_contract_v2(token_admin)
-        .address();
-
-    // Initialize with mocked auth just for setup
-    env.mock_all_auths();
-    client.initialize(&admin, &token, &0);
-
-    let creator = Address::generate(&env);
-    let validator = Address::generate(&env);
-    let pool_id = create_pool_with_validator(&client, &env, &creator, &validator, &token);
-
-    let applicant = Address::generate(&env);
-    client.apply_for_scholarship(&pool_id, &applicant);
-
-    // Clear mocked auths — now auth is enforced
-    env.set_auths(&[]);
-
-    // This must panic because validator has not signed
-    client.approve_application(&pool_id, &applicant, &validator);
-}
-
-/// Verifies that unauthenticated accounts cannot reject applications.
 #[test]
 #[should_panic]
 fn test_reject_panics_without_auth() {
@@ -322,11 +317,26 @@ fn test_reject_panics_without_auth() {
     let validator = Address::generate(&env);
     let pool_id = create_pool_with_validator(&client, &env, &creator, &validator, &token);
 
-    let applicant = Address::generate(&env);
-    client.apply_for_scholarship(&pool_id, &applicant);
+    let student = Address::generate(&env);
+    client.apply_for_scholarship(&pool_id, &student);
 
     env.set_auths(&[]);
 
-    // This must panic because validator has not signed
-    client.reject_application(&pool_id, &applicant, &validator);
+    client.reject_application(&pool_id, &student, &validator);
+}
+
+// ── get_application ───────────────────────────────────────────────────────────
+
+#[test]
+fn test_get_application_not_found() {
+    let env = Env::default();
+    let (client, _, token) = setup(&env);
+
+    let creator = Address::generate(&env);
+    let validator = Address::generate(&env);
+    let pool_id = create_pool_with_validator(&client, &env, &creator, &validator, &token);
+
+    let student = Address::generate(&env);
+    let result = client.try_get_application(&pool_id, &student);
+    assert_eq!(result, Err(Ok(ValidationError::ApplicationNotFound)));
 }

@@ -228,12 +228,9 @@ pub trait CrowdfundingTrait {
 
     /// Approve a pending scholarship application.
     /// Only the pool's designated validator may call this.
-    fn approve_application(
-        env: Env,
-        pool_id: u64,
-        applicant: Address,
-        validator: Address,
-    ) -> Result<(), ValidationError>;
+    /// The validator identity is enforced via `pool.validator.require_auth()`.
+    fn approve_application(env: Env, pool_id: u32, student: Address)
+        -> Result<(), ValidationError>;
 
     /// Reject a pending scholarship application.
     /// Only the pool's designated validator may call this.

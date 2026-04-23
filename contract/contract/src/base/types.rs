@@ -337,6 +337,8 @@ pub enum StorageKey {
     PoolClaimed(u64),
     // Per-event metrics (tickets sold, etc.)
     EventMetrics(BytesN<32>),
+    // Locked token balance deposited by the sponsor at pool creation
+    PoolBalance(u64),
 }
 
 #[cfg(test)]

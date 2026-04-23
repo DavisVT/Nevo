@@ -1,10 +1,10 @@
 use soroban_sdk::{Address, BytesN, Env, String, Vec};
 
 use crate::base::{
-    errors::CrowdfundingError,
+    errors::{CrowdfundingError, ValidationError},
     types::{
         CampaignDetails, CampaignLifecycleStatus, PoolConfig, PoolContribution, PoolMetadata,
-        PoolState,
+        PoolState, ScholarshipApplication,
     },
 };
 
@@ -231,4 +231,34 @@ pub trait CrowdfundingTrait {
     fn claim_pool_funds(env: Env, pool_id: u64, student: Address) -> Result<(), CrowdfundingError>;
 
     fn upgrade_contract(env: Env, new_wasm_hash: BytesN<32>) -> Result<(), CrowdfundingError>;
+
+    /// Submit a scholarship application for a pool.
+    /// The applicant must sign the transaction.
+    fn apply_for_scholarship(
+        env: Env,
+        pool_id: u64,
+        applicant: Address,
+    ) -> Result<(), ValidationError>;
+
+    /// Approve a pending scholarship application.
+    /// Only the pool's designated validator may call this.
+    /// The validator identity is enforced via `pool.validator.require_auth()`.
+    fn approve_application(env: Env, pool_id: u32, student: Address)
+        -> Result<(), ValidationError>;
+
+    /// Reject a pending scholarship application.
+    /// Only the pool's designated validator may call this.
+    fn reject_application(
+        env: Env,
+        pool_id: u64,
+        applicant: Address,
+        validator: Address,
+    ) -> Result<(), ValidationError>;
+
+    /// Retrieve a scholarship application.
+    fn get_application(
+        env: Env,
+        pool_id: u64,
+        applicant: Address,
+    ) -> Result<ScholarshipApplication, ValidationError>;
 }

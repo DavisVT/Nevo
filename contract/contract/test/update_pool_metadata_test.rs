@@ -40,6 +40,7 @@ fn create_test_pool(env: &Env, client: &CrowdfundingContractClient<'_>, creator:
         duration: 86400, // 1 day
         created_at: 1_000,
         token_address: token_id.clone(),
+            validator: admin.clone(),
     };
 
     StellarAssetClient::new(env, token_id).mint(creator, &config.target_amount);
@@ -49,7 +50,7 @@ fn create_test_pool(env: &Env, client: &CrowdfundingContractClient<'_>, creator:
 #[test]
 fn test_update_pool_metadata_hash_success() {
     let env = Env::default();
-    let (client, _admin, _token_id) = setup_test(&env);
+    let (client, _admin, token_id) = setup_test(&env);
 
     let creator = Address::generate(&env);
     let pool_id = create_test_pool(&env, &client, &creator, &_token_id);
@@ -67,7 +68,7 @@ fn test_update_pool_metadata_hash_success() {
 #[test]
 fn test_update_pool_metadata_hash_only_creator_can_update() {
     let env = Env::default();
-    let (client, _admin, _token_id) = setup_test(&env);
+    let (client, _admin, token_id) = setup_test(&env);
 
     let creator = Address::generate(&env);
     let non_creator = Address::generate(&env);
@@ -103,7 +104,7 @@ fn test_update_pool_metadata_hash_nonexistent_pool() {
 #[test]
 fn test_update_pool_metadata_hash_too_long() {
     let env = Env::default();
-    let (client, _admin, _token_id) = setup_test(&env);
+    let (client, _admin, token_id) = setup_test(&env);
 
     let creator = Address::generate(&env);
     let pool_id = create_test_pool(&env, &client, &creator, &_token_id);
@@ -125,7 +126,7 @@ fn test_update_pool_metadata_hash_too_long() {
 #[test]
 fn test_update_pool_metadata_hash_when_paused() {
     let env = Env::default();
-    let (client, _admin, _token_id) = setup_test(&env);
+    let (client, _admin, token_id) = setup_test(&env);
 
     let creator = Address::generate(&env);
     let pool_id = create_test_pool(&env, &client, &creator, &_token_id);
@@ -146,7 +147,7 @@ fn test_update_pool_metadata_hash_when_paused() {
 #[test]
 fn test_update_pool_metadata_hash_multiple_times() {
     let env = Env::default();
-    let (client, _admin, _token_id) = setup_test(&env);
+    let (client, _admin, token_id) = setup_test(&env);
 
     let creator = Address::generate(&env);
     let pool_id = create_test_pool(&env, &client, &creator, &_token_id);
@@ -171,7 +172,7 @@ fn test_update_pool_metadata_hash_multiple_times() {
 #[test]
 fn test_update_pool_metadata_hash_event_emission() {
     let env = Env::default();
-    let (client, _admin, _token_id) = setup_test(&env);
+    let (client, _admin, token_id) = setup_test(&env);
 
     let creator = Address::generate(&env);
     let pool_id = create_test_pool(&env, &client, &creator, &_token_id);

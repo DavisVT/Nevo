@@ -54,11 +54,17 @@ pub enum CrowdfundingError {
     InsufficientFees = 48,
     UserBlacklisted = 49,
     CampaignCancelled = 50,
-    InsufficientSponsorBalance = 51,
-    ApplicationNotFound = 52,
-    ApplicationAlreadySubmitted = 53,
-    ApplicationAlreadyReviewed = 54,
-    InvalidApplicationCredentials = 55,
+}
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum ValidationError {
+    ApplicationNotFound = 1,
+    ApplicationAlreadyProcessed = 2,
+    ApplicationAlreadyExists = 3,
+    PoolNotFound = 4,
+    Unauthorized = 5,
 }
 
 #[contracterror]
@@ -69,6 +75,11 @@ pub enum SecondCrowdfundingError {
     EventNotFound = 2,
     EventSoldOut = 3,
     EventExpired = 4,
+    InsufficientSponsorBalance = 5,
+    ApplicationNotFound = 6,
+    ApplicationAlreadySubmitted = 7,
+    ApplicationAlreadyReviewed = 8,
+    InvalidApplicationCredentials = 9,
 }
 
 #[cfg(test)]

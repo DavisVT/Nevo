@@ -3,12 +3,17 @@ use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, String, V
 
 use crate::base::errors::SecondCrowdfundingError;
 use crate::base::{
+    errors::{CrowdfundingError, SecondCrowdfundingError, ValidationError},
     errors::CrowdfundingError,
     events,
     reentrancy::{
         acquire_emergency_lock, reentrancy_lock_logic, release_emergency_lock, release_pool_lock,
     },
     types::{
+        ApplicationStatus, CampaignDetails, CampaignLifecycleStatus, CampaignMetrics, Contribution,
+        EmergencyWithdrawal, EventDetails, EventMetrics, MultiSigConfig, PoolConfig,
+        PoolContribution, PoolMetadata, PoolMetrics, PoolState, ScholarshipApplication, StorageKey,
+        MAX_DESCRIPTION_LENGTH, MAX_HASH_LENGTH, MAX_STRING_LENGTH, MAX_URL_LENGTH,
         ApplicationDetails, ApplicationStatus, CampaignDetails, CampaignLifecycleStatus,
         CampaignMetrics, Contribution, EmergencyWithdrawal, EventDetails, EventMetrics,
         MultiSigConfig, PoolConfig, PoolContribution, PoolMetadata, PoolMetrics, PoolState,
@@ -1090,7 +1095,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
             duration,
             created_at: now,
             token_address: platform_token,
-            validator: creator.clone(), // Default validator is the creator
+            validator: creator.clone(),
         };
 
         // Store pool configuration
@@ -2100,6 +2105,126 @@ impl CrowdfundingTrait for CrowdfundingContract {
 
         env.deployer().update_current_contract_wasm(new_wasm_hash);
         Ok(())
+    }
+
+    fn apply_for_scholarship(
+        env: Env,
+        pool_id: u64,
+        applicant: Address,
+    ) -> Result<(), ValidationError> {
+        // Applicant must sign the transaction
+        applicant.require_auth();
+
+        // Fetch pool from persistent storage — panics if not found
+        let pool_key = StorageKey::Pool(pool_id);
+        let _pool: PoolConfig = env
+            .storage()
+            .instance()
+            .get(&pool_key)
+            .ok_or(ValidationError::PoolNotFound)?;
+
+        let app_key = StorageKey::ScholarshipApplication(pool_id, applicant.clone());
+
+        // Prevent duplicate applications
+        if env.storage().instance().has(&app_key) {
+            return Err(ValidationError::ApplicationAlreadyExists);
+        }
+
+        let application = ScholarshipApplication {
+            pool_id,
+            applicant: applicant.clone(),
+            status: ApplicationStatus::Pending,
+        };
+
+        env.storage().instance().set(&app_key, &application);
+        events::scholarship_applied(&env, pool_id, applicant);
+        Ok(())
+    }
+
+    fn approve_application(
+        env: Env,
+        pool_id: u32,
+        student: Address,
+    ) -> Result<(), ValidationError> {
+        // Fetch pool from persistent storage — gives us the stored validator
+        let pool_key = StorageKey::Pool(pool_id as u64);
+        let pool: PoolConfig = env
+            .storage()
+            .instance()
+            .get(&pool_key)
+            .ok_or(ValidationError::PoolNotFound)?;
+
+        // Enforce validator identity: only the pool's designated validator may approve.
+        // Invalid signers cause an immediate auth panic here.
+        pool.validator.require_auth();
+
+        let app_key = StorageKey::ScholarshipApplication(pool_id as u64, student.clone());
+        let mut application: ScholarshipApplication = env
+            .storage()
+            .instance()
+            .get(&app_key)
+            .ok_or(ValidationError::ApplicationNotFound)?;
+
+        if application.status != ApplicationStatus::Pending {
+            return Err(ValidationError::ApplicationAlreadyProcessed);
+        }
+
+        // Shift status to Approved and write back to storage
+        application.status = ApplicationStatus::Approved;
+        env.storage().instance().set(&app_key, &application);
+        events::scholarship_approved(&env, pool_id as u64, student, pool.validator);
+        Ok(())
+    }
+
+    fn reject_application(
+        env: Env,
+        pool_id: u64,
+        applicant: Address,
+        validator: Address,
+    ) -> Result<(), ValidationError> {
+        // Fetch pool — ensures it exists and gives us the stored validator
+        let pool_key = StorageKey::Pool(pool_id);
+        let pool: PoolConfig = env
+            .storage()
+            .instance()
+            .get(&pool_key)
+            .ok_or(ValidationError::PoolNotFound)?;
+
+        // Enforce that only the pool's designated validator may reject
+        pool.validator.require_auth();
+
+        // The caller must match the stored validator
+        if validator != pool.validator {
+            return Err(ValidationError::Unauthorized);
+        }
+
+        let app_key = StorageKey::ScholarshipApplication(pool_id, applicant.clone());
+        let mut application: ScholarshipApplication = env
+            .storage()
+            .instance()
+            .get(&app_key)
+            .ok_or(ValidationError::ApplicationNotFound)?;
+
+        if application.status != ApplicationStatus::Pending {
+            return Err(ValidationError::ApplicationAlreadyProcessed);
+        }
+
+        application.status = ApplicationStatus::Rejected;
+        env.storage().instance().set(&app_key, &application);
+        events::scholarship_rejected(&env, pool_id, applicant, validator);
+        Ok(())
+    }
+
+    fn get_application(
+        env: Env,
+        pool_id: u64,
+        applicant: Address,
+    ) -> Result<ScholarshipApplication, ValidationError> {
+        let app_key = StorageKey::ScholarshipApplication(pool_id, applicant);
+        env.storage()
+            .instance()
+            .get(&app_key)
+            .ok_or(ValidationError::ApplicationNotFound)
     }
 }
 

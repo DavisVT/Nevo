@@ -2,6 +2,8 @@
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
 
 use crate::base::errors::SecondCrowdfundingError;
+#[cfg(test)]
+use crate::base::types::{EventDetails, EventMetrics};
 use crate::base::{
     errors::CrowdfundingError,
     events,
@@ -10,16 +12,19 @@ use crate::base::{
     },
     types::{
         CampaignDetails, CampaignLifecycleStatus, CampaignMetrics, Contribution,
-        EmergencyWithdrawal, EventDetails, EventMetrics, MultiSigConfig, PoolConfig,
-        PoolContribution, PoolMetadata, PoolMetrics, PoolState, StorageKey, MAX_DESCRIPTION_LENGTH,
-        MAX_HASH_LENGTH, MAX_STRING_LENGTH, MAX_URL_LENGTH,
+        EmergencyWithdrawal, MultiSigConfig, PoolConfig, PoolContribution, PoolMetadata,
+        PoolMetrics, PoolState, StorageKey, MAX_DESCRIPTION_LENGTH, MAX_HASH_LENGTH,
+        MAX_STRING_LENGTH, MAX_URL_LENGTH,
     },
 };
 use crate::interfaces::crowdfunding::CrowdfundingTrait;
 #[cfg(test)]
 use crate::interfaces::second_crowdfunding::SecondCrowdfundingTrait;
 
+/// Documentation for this item.
+#[allow(missing_docs)]
 #[contract]
+/// Represents a crowdfundingcontract.
 pub struct CrowdfundingContract;
 
 // Internal helper functions
@@ -67,6 +72,8 @@ impl CrowdfundingContract {
     }
 }
 
+/// Documentation for this item.
+#[allow(missing_docs)]
 #[contractimpl]
 #[allow(clippy::too_many_arguments)]
 impl CrowdfundingTrait for CrowdfundingContract {

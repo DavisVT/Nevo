@@ -23,6 +23,8 @@ pub enum ApplicationStatus {
 pub struct Application {
     pub student: Address,
     pub requested_amount: i128,
+    pub total_granted: i128,
+    pub amount_claimed: i128,
     pub status: ApplicationStatus,
     pub milestone_index: u32,
 }

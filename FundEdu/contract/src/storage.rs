@@ -82,6 +82,8 @@ mod tests {
             let app = Application {
                 student: student.clone(),
                 requested_amount: 1000,
+                total_granted: 1000,
+                amount_claimed: 0,
                 status: ApplicationStatus::Pending,
                 milestone_index: 0,
             };

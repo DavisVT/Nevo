@@ -1887,7 +1887,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
         env.storage()
             .instance()
             .set(&StorageKey::VerifiedCause(cause.clone()), &true);
-        events::application_approved(&env, admin, cause);
+        events::school_registered(&env, cause);
         Ok(())
     }
 
@@ -1909,7 +1909,7 @@ impl CrowdfundingTrait for CrowdfundingContract {
         env.storage()
             .instance()
             .remove(&StorageKey::VerifiedCause(cause.clone()));
-        events::application_rejected(&env, admin, cause);
+        events::school_revoked(&env, cause);
         Ok(())
     }
 

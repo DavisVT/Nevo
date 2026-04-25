@@ -1,7 +1,7 @@
-use soroban_sdk::{contract, contractimpl, contracterror, Address, Env, String};
+use soroban_sdk::{contract, contractimpl, contracterror, Address, BytesN, Env, String};
 
 use crate::{
-    storage::{get_pool, next_pool_id, set_pool},
+    storage::{get_admin, get_pool, next_pool_id, set_admin, set_pool},
     types::ScholarshipPool,
 };
 
@@ -26,6 +26,10 @@ pub enum FundEduError {
     InvalidFunding = 7,
     /// No pool exists for the given `pool_id`.
     PoolNotFound = 8,
+    /// Caller is not the contract admin.
+    Unauthorized = 9,
+    /// Contract has already been initialized.
+    AlreadyInitialized = 10,
 }
 
 #[contract]
@@ -33,6 +37,29 @@ pub struct FundEduContract;
 
 #[contractimpl]
 impl FundEduContract {
+    /// Initialise the contract and record the admin address.
+    ///
+    /// Must be called once after deployment. Subsequent calls return
+    /// [`FundEduError::AlreadyInitialized`].
+    pub fn initialize(env: Env, admin: Address) -> Result<(), FundEduError> {
+        if get_admin(&env).is_some() {
+            return Err(FundEduError::AlreadyInitialized);
+        }
+        admin.require_auth();
+        set_admin(&env, &admin);
+        Ok(())
+    }
+
+    /// Upgrade the contract WASM to `new_wasm_hash`.
+    ///
+    /// Only the admin recorded at initialisation may call this.
+    pub fn upgrade(env: Env, new_wasm_hash: BytesN<32>) -> Result<(), FundEduError> {
+        let admin = get_admin(&env).ok_or(FundEduError::Unauthorized)?;
+        admin.require_auth();
+        env.deployer().update_current_contract_wasm(new_wasm_hash);
+        Ok(())
+    }
+
     /// Create a new scholarship pool.
     ///
     /// # Arguments

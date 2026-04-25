@@ -14,4 +14,5 @@ pub struct ScholarshipPool {
 pub enum DataKey {
     Pool(u64),
     NextPoolId,
+    Admin,
 }

@@ -5,6 +5,14 @@ use crate::types::{DataKey, ScholarshipPool};
 const POOL_BUMP_AMOUNT: u32 = 100;
 const POOL_LIFETIME_THRESHOLD: u32 = 50;
 
+pub fn get_admin(env: &Env) -> Option<soroban_sdk::Address> {
+    env.storage().instance().get(&DataKey::Admin)
+}
+
+pub fn set_admin(env: &Env, admin: &soroban_sdk::Address) {
+    env.storage().instance().set(&DataKey::Admin, admin);
+}
+
 pub fn get_pool(env: &Env, pool_id: u64) -> Option<ScholarshipPool> {
     let key = DataKey::Pool(pool_id);
     if let Some(pool) = env

@@ -9,6 +9,9 @@ const CREATOR_SUFFIX: &str = "_creator";
 const GOAL_SUFFIX: &str = "_goal";
 const COLLECTED_SUFFIX: &str = "_collected";
 const CLOSED_SUFFIX: &str = "_closed";
+const APPLICATION_COUNT_PREFIX: &str = "a_count_";
+const APPLICATION_PREFIX: &str = "a_";
+const APPLICANT_PREFIX: &str = "ap_";
 
 // Application and claim tracking constants
 const APPLICATION_STATUS_PREFIX: &str = "app_status";
@@ -180,49 +183,39 @@ impl Contract {
             .get::<_, (Address, u128, u128, bool)>(&pool_key)
             .expect("Pool not found");
 
-        // Check that claim_amount is positive
-        if claim_amount <= 0 {
-            panic!("Claim amount must be positive");
+        // Check if already applied
+        let applicant_key = (
+            Symbol::new(&env, APPLICANT_PREFIX),
+            pool_id,
+            student.clone(),
+        );
+        if env.storage().persistent().has(&applicant_key) {
+            panic!("Duplicate application");
         }
 
-        // Check application status is "Approved"
-        let status_key = (APPLICATION_STATUS_PREFIX, pool_id, student.clone());
-        let status: String = env
+        // Get next application id for this pool
+        let count_key = (Symbol::new(&env, APPLICATION_COUNT_PREFIX), pool_id);
+        let mut app_count: u32 = env
             .storage()
             .persistent()
-            .get::<_, String>(&status_key)
-            .expect("Application status not found");
-
-        let approved_status = String::from_str(&env, APPLICATION_STATUS_APPROVED);
-        if status != approved_status {
-            panic!("Application is not approved");
-        }
-
-        // Get previously claimed amount
-        let claimed_key = (CLAIMED_AMOUNT_PREFIX, pool_id, student.clone());
-        let previously_claimed: i128 = env
-            .storage()
-            .persistent()
-            .get::<_, i128>(&claimed_key)
+            .get::<_, u32>(&count_key)
             .unwrap_or(0);
+        app_count += 1;
 
-        // Check for overdraw: ensure previously_claimed + claim_amount <= collected
-        let collected_u128 = pool_data.2;
-        let total_available: i128 = collected_u128 as i128;
-        let new_total_claimed = previously_claimed + claim_amount;
+        // Store application
+        let app_key = (Symbol::new(&env, APPLICATION_PREFIX), pool_id, app_count);
+        env.storage().persistent().set(
+            &app_key,
+            &(app_count, student.clone(), application_data.clone()),
+        );
 
-        if new_total_claimed > total_available {
-            panic!("Overdraw attempt: insufficient funds in pool");
-        }
+        // Mark as applied
+        env.storage().persistent().set(&applicant_key, &true);
 
-        // Use token::Client to transfer from current contract to student
-        let token_client = token::Client::new(&env, &token_address);
-        token_client.transfer(&env.current_contract_address(), &student, &claim_amount);
+        // Update count
+        env.storage().persistent().set(&count_key, &app_count);
 
-        // Update claimed amount in storage
-        env.storage()
-            .persistent()
-            .set(&claimed_key, &new_total_claimed);
+        (app_count, student, application_data)
     }
 }
 

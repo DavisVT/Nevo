@@ -1,15 +1,14 @@
-name: Contract CI/CD Pipeline
+name: Backend Build Check
 
 on:
-    push: 
-        branches: [main, develop]
-        paths: 
-            - 'contract/**'
-
-    pull_request:
-        branches: [ main, develop ]
-        paths:
-            - 'contract/**'
+  push:
+    branches: [main]
+    paths:
+      - 'nevo_server/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'nevo_server/**'
 
 jobs:
   build:
@@ -17,33 +16,17 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Setup Rust
-        uses: actions-rs/toolchain@v1
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          toolchain: stable
-          profile: minimal
-          override: true
+          node-version: "20"
 
-      - name: Install Stellar CLI
-        run: |
-          curl -s https://get.stellar.org | bash
+      - name: Install dependencies
+        run: npm install
+        working-directory: ./nevo_server
 
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-        working-directory: ./contract/contract
-
-      - name: Run contract tests
-        run: cargo test
-        working-directory: ./contract/contract
-
-      - name: Build contracts
-        run: cargo build --release
-        working-directory: ./contract/contract
-
-      - name: Deploy to Stellar testnet
-        run: echo "Add Stellar deployment script here"
-        working-directory: ./contract/contract
-        env:
-          STELLAR_SECRET: ${{ secrets.STELLAR_SECRET }}
+      - name: Build backend
+        run: npm run build
+        working-directory: ./nevo_server
